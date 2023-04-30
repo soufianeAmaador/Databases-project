@@ -1,0 +1,95 @@
+			practicum 3
+-----------------------------------------------------
+CREATE INDEX QUERY OPDRACHT C:                       |
+-----------------------------------------------------
+
+CREATE INDEX accommodatie_code_idx on
+reservering(accommodatiecpde)
+
+accommodatiecpde opzettelijk zo geschreven omdat er een type is in de database.
+------------------------------------------------------
+CREATE CONSTRAINT QUERY OPDRACHT F:                   |
+------------------------------------------------------
+ALTER TABLE reservering
+ADD CONSTRAINT CHECK_DATE CHECK ((`vertrekdatum` > `aankomstdatum`))
+
+------------------------------------------------------
+CREATE CONSTRAINT ACCOMMODATIECODES QUERY OPDRACHT G: |
+------------------------------------------------------
+
+ALTER TABLE accommodatie
+ADD CONSTRAINT CHECK_ACCOMMODATIECODE CHECK ((not((`accommodatiecode` like _utf8mb4'^[^A-Za-z][^A-Za-z][^A-Za-z][^A-Za-z][^0-9]$'))))
+
+----------------------------------------------------------------
+CREATE STORED FUNCTION GEBOEKTOP(CODE,PDATUM) QUERY OPDRACHT I: |
+----------------------------------------------------------------
+
+DELIMITER //
+
+CREATE FUNCTION GeboektOp (pCode VARCHAR(45), pDatum DATETIME) RETURNS varchar(45)
+BEGIN
+DECLARE rCode varchar(45) DEFAULT NULL;
+
+SELECT r.reizigercode 
+INTO rCode
+FROM reiziger r
+INNER JOIN reservering on reservering.reizigerscode = r.reizigercode
+WHERE reservering.accommodatiecpde = pCode AND reservering.aankomstdatum = pDatum;
+
+RETURN rCode;
+END; //
+
+DELIMITER ;
+
+-----------------------------------------------------------
+                            EINDE PRACTICUM 3              |
+-----------------------------------------------------------
+
+-----------------------------------------------------------
+                            PRACTICUM 4                    |
+-----------------------------------------------------------
+CREATE BOEKINGSOVERZICHT VIEW  QUERY OPDRACHT B|
+-------------------------------
+
+CREATE VIEW boekingsoverzicht AS 
+SELECT accommodatie.naam AS naam,accommodatie.stad AS stad,accommodatie.land AS land,accommodatie.kamer AS kamer,
+concat(reiziger.voornaam,' ',reiziger.achternaam) AS reizigerNaam,reservering.aankomstdatum AS aankomstdatum,
+(to_days(reservering.vertrekdatum) - to_days(reservering.aankomstdatum)) AS dagenVerblijven,reservering.betaald AS betaald
+from ((`reservering` join `accommodatie` on((`reservering`.`accommodatiecpde` = `accommodatie`.`accommodatiecode`))) 
+join `reiziger` on((`reservering`.`reizigerscode` = `reiziger`.`reizigercode`))) 
+order by `reservering`.`aankomstdatum`
+
+------------------------------------------------------------------------------
+CREATE VERWIJDERACCOMMODATIE(IN ACCOMMODATIECODE VARCHAR(5)) QUERY OPDRACHT C |
+------------------------------------------------------------------------------
+
+
+DELIMITER $$
+CREATE PROCEDURE verwijderAccommodatie(IN accommodatieCode VARCHAR(5))
+BEGIN
+DECLARE has_removable_reservations int;
+
+select count(accommodatie.kamer) into has_removable_reservations 
+FROM accommodatie 
+INNER JOIN reservering ON reservering.accommodatiecpde = accommodatie.accommodatiecode 
+WHERE accommodatie.accommodatiecode = accommodatieCode
+AND (CURDATE() NOT BETWEEN reservering.aankomstDatum AND reservering.vertrekdatum)
+AND (curdate() > reservering.aankomstdatum);
+
+
+	IF (has_removable_reservations > 0) 
+
+	THEN START TRANSACTION;
+
+DELETE FROM accommodatie 
+WHERE accommodatie.accommodatiecode = accommodatieCode;
+
+IF (SELECT * FROM reservering WHERE reservering.accommodatiecpde = accommodatiecode AND reservering.betaald IS TRUE)
+THEN DELETE FROM reservering WHERE accommodatiecpde = accommodatieCode;
+
+END IF;
+
+	COMMIT;
+	END IF;
+END$$
+DELIMITER ;

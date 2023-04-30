@@ -1,0 +1,16 @@
+*.class
+
+# Package Files #
+*.jar
+*.war
+*.ear
+
+*/bin
+*bin
+*.bin
+*bin
+
+.idea/workspace.xml
+
+target
+.DS_Store
